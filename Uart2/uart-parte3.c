@@ -5,6 +5,13 @@ void UART0_init(void);
 void UART0_putc(char c);
 char UART0_getc(void);
 void UART0_puts(const char *str);
+int UART0_available(void);
+
+#define UART0_RX_BUFFER_SIZE 32u
+
+static volatile char uart0RxBuffer[UART0_RX_BUFFER_SIZE];
+static volatile unsigned int uart0RxWriteIndex = 0u;
+static volatile unsigned int uart0RxReadIndex = 0u;
 
 /* Menu functions */
 void showMenu(void);
@@ -40,9 +47,6 @@ void UART0_init(void)
     /* 8-bit data, no parity */
     UART0->C1 = 0x00;
 
-    /* Enable transmitter AND receiver */
-    UART0->C2 = 0x0C;
-
     /* Enable clock for PORTA */
     SIM->SCGC5 |= 0x0200;
 
@@ -51,6 +55,35 @@ void UART0_init(void)
 
     /* PTA1 = UART0_RX */
     PORTA->PCR[1] = 0x0200;
+
+    /* Enable the UART0 interrupt in the NVIC. */
+    NVIC_ClearPendingIRQ(UART0_IRQn);
+    NVIC_EnableIRQ(UART0_IRQn);
+
+    /* Enable transmitter, receiver and receiver-data interrupt. */
+    UART0->C2 = UART0_C2_TE_MASK |
+                UART0_C2_RE_MASK |
+                UART0_C2_RIE_MASK;
+}
+
+void UART0_IRQHandler(void)
+{
+    unsigned int nextWriteIndex;
+    char receivedCharacter;
+
+    /* RDRF is handled only inside the receiver interrupt service routine. */
+    if (UART0->S1 & UART0_S1_RDRF_MASK)
+    {
+        receivedCharacter = (char)UART0->D;
+        nextWriteIndex = (uart0RxWriteIndex + 1u) % UART0_RX_BUFFER_SIZE;
+
+        /* If the buffer is full, discard the newest character. */
+        if (nextWriteIndex != uart0RxReadIndex)
+        {
+            uart0RxBuffer[uart0RxWriteIndex] = receivedCharacter;
+            uart0RxWriteIndex = nextWriteIndex;
+        }
+    }
 }
 
 void UART0_putc(char c)
@@ -65,12 +98,23 @@ void UART0_putc(char c)
 
 char UART0_getc(void)
 {
-    /* Wait until a character is received */
-    while (!(UART0->S1 & 0x20))
+    char receivedCharacter;
+
+    /* Wait for the ISR to place a character in the software buffer. */
+    while (!UART0_available())
     {
+        __WFI();
     }
 
-    return UART0->D;
+    receivedCharacter = uart0RxBuffer[uart0RxReadIndex];
+    uart0RxReadIndex = (uart0RxReadIndex + 1u) % UART0_RX_BUFFER_SIZE;
+
+    return receivedCharacter;
+}
+
+int UART0_available(void)
+{
+    return uart0RxWriteIndex != uart0RxReadIndex;
 }
 
 void UART0_puts(const char *str)
@@ -197,9 +241,9 @@ void optionADC(void)
 
     while (1)
     {
-        if (UART0->S1 & 0x20)
+        if (UART0_available())
         {
-            command = UART0->D;
+            command = UART0_getc();
             if (command == 'Q' || command == 'q')
                 return;
             UART0_puts("\r\nInvalid command.\r\n");
@@ -237,36 +281,36 @@ void optionKeypad(void)
     int column;
     char lastKey = 0;
 
-    // PTB0-PTB7
-    SIM->SCGC5 |= SIM_SCGC5_PORTB_MASK;
+    /* Keypad: rows on PTC0-PTC3 and columns on PTC4-PTC7. */
+    SIM->SCGC5 |= SIM_SCGC5_PORTC_MASK;
     for (row = 0; row < 4; row++)
     {
-        PORTB->PCR[row] = PORT_PCR_MUX(1);
-        PORTB->PCR[row + 4] = PORT_PCR_MUX(1) |
+        PORTC->PCR[row] = PORT_PCR_MUX(1);
+        PORTC->PCR[row + 4] = PORT_PCR_MUX(1) |
                              PORT_PCR_PE_MASK | PORT_PCR_PS_MASK;
     }
-    PTB->PDDR |= 0x0F;
-    PTB->PDDR &= ~0xF0;
-    PTB->PSOR = 0x0F;
+    PTC->PDDR |= 0x0F;
+    PTC->PDDR &= ~0xF0;
+    PTC->PSOR = 0x0F;
 
     UART0_puts("\r\nPress a key (Q from Tera Term to return):\r\n");
 
     while (1)
     {
-        if (UART0->S1 & 0x20)
+        if (UART0_available())
         {
-            char command = UART0->D;
+            char command = UART0_getc();
             if (command == 'Q' || command == 'q') return;
             UART0_puts("\r\nInvalid command.\r\n");
         }
 
         for (row = 0; row < 4; row++)
         {
-            PTB->PSOR = 0x0F;
-            PTB->PCOR = (1u << row);
+            PTC->PSOR = 0x0F;
+            PTC->PCOR = (1u << row);
             for (column = 0; column < 4; column++)
             {
-                if ((PTB->PDIR & (1u << (column + 4))) == 0)
+                if ((PTC->PDIR & (1u << (column + 4))) == 0)
                 {
                     if (lastKey != keys[row][column])
                     {
@@ -278,7 +322,7 @@ void optionKeypad(void)
                 }
             }
         }
-        if ((PTB->PDIR & 0xF0) == 0xF0) lastKey = 0;
+        if ((PTC->PDIR & 0xF0) == 0xF0) lastKey = 0;
     }
 }
 
@@ -301,9 +345,9 @@ void optionButtons(void)
 
     while (1)
     {
-        if (UART0->S1 & 0x20)
+        if (UART0_available())
         {
-            char command = UART0->D;
+            char command = UART0_getc();
             if (command == 'Q' || command == 'q') return;
             UART0_puts("\r\nInvalid command.\r\n");
         }
