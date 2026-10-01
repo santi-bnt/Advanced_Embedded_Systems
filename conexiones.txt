@@ -1,0 +1,27 @@
+DS3231:
+SCL     → PTE24
+SDA     → PTE25
+INT/SQW → PTD7
+VCC     → 3.3 V
+GND     → GND
+
+LCD paralelo:
+RS → PTD0
+E  → PTD2
+D4 → PTD3
+D5 → PTD4
+D6 → PTD5
+D7 → PTD6
+
+Buzzer:
+Señal → PTB8
+GND   → GND
+
+R1 → PTC8
+R2 → PTC9
+R3 → PTC10
+R4 → PTC11
+C1 → PTC12
+C2 → PTC13
+C3 → PTC16
+C4 → PTC17

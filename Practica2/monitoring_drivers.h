@@ -696,11 +696,13 @@ void PORTD_IRQHandler(void)
     if (PORTD->ISFR & (1u << 7))
     {
         PORTD->ISFR = (1u << 7);
+
         alarm_active = 1;
-        PTB->PSOR = (1u << 8);              /* Buzzer on */
-        PTB->PCOR = (1u << 18);             /* Red on */
-        PTB->PSOR = (1u << 19);             /* Green off */
-        PTD->PSOR = (1u << 1);              /* Blue off */
+
+        /* Visual alarm */
+        PTB->PCOR = (1u << 18);   /* Red on */
+        PTB->PSOR = (1u << 19);   /* Green off */
+        PTD->PSOR = (1u << 1);    /* Blue off */
     }
 }
 
