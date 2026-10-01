@@ -1,0 +1,96 @@
+/* Extra 3 - Temperature threshold alarm
+ * D = enter a four-digit limit, # = confirm, * = cancel.
+ * The value uses tenths: 0300 means 30.0 C.
+ */
+
+#include "monitoring_drivers.h"
+
+int main(void)
+{
+    unsigned int threshold = 300;
+    unsigned char setting = 0;
+    unsigned char digits[4];
+    unsigned char count = 0;
+    int temperature;
+    char key;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+    keypad_init();
+    alarm_gpio_init();
+
+    while (1)
+    {
+        RTC_read();
+        temperature = TMP102_read();
+        MAX7219_time();
+        key = keypad_key();
+
+        if (temperature >= (int)threshold)
+        {
+            PTB->PSOR = (1u << 8);          /* Buzzer on */
+            PTB->PCOR = (1u << 18);         /* Red on */
+            PTB->PSOR = (1u << 19);
+            PTD->PSOR = (1u << 1);
+        }
+        else
+        {
+            PTB->PCOR = (1u << 8);          /* Buzzer off */
+            PTB->PSOR = (1u << 18) | (1u << 19);
+            PTD->PSOR = (1u << 1);
+        }
+
+        if (!setting)
+        {
+            LCD_command(0x80);
+            LCD_text("Temp: ");
+            LCD_temperature(temperature);
+            LCD_text("     ");
+
+            LCD_command(0xC0);
+            if (temperature >= (int)threshold)
+            {
+                LCD_text("WARNING! D=set  ");
+            }
+            else
+            {
+                LCD_text("Normal   D=set  ");
+            }
+
+            if (key == 'D')
+            {
+                setting = 1;
+                count = 0;
+                LCD_command(0x01);
+                LCD_text("LIMIT: 0300=30C");
+            }
+        }
+        else
+        {
+            if ((key >= '0') && (key <= '9') && (count < 4u))
+            {
+                digits[count] = (unsigned char)(key - '0');
+                count++;
+                LCD_input(digits, count);
+            }
+            else if (key == '*')
+            {
+                setting = 0;
+                count = 0;
+                LCD_command(0x01);
+            }
+            else if ((key == '#') && (count == 4u))
+            {
+                threshold = digits[0] * 1000u + digits[1] * 100u +
+                            digits[2] * 10u + digits[3];
+                setting = 0;
+                count = 0;
+                LCD_command(0x01);
+            }
+        }
+
+        delay_ms(50);
+    }
+}

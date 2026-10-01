@@ -1,0 +1,28 @@
+/* Exercise 1 - DS3231 date and time
+ * I2C1: PTC1 SCL, PTC2 SDA
+ * LCD: PTD0 RS, PTD2 E, PTD3-PTD6 D4-D7
+ */
+
+#include "monitoring_drivers.h"
+
+#define SET_CLOCK_ONCE 1
+
+int main(void)
+{
+    I2C1_init();
+    LCD_init();
+
+    /* Change SET_CLOCK_ONCE to 0 after loading the correct time once. */
+    if (SET_CLOCK_ONCE)
+    {
+        RTC_set(15, 30, 0, 9, 9, 26);
+    }
+
+    while (1)
+    {
+        RTC_read();
+        LCD_time();
+        LCD_date();
+        delay_ms(200);
+    }
+}

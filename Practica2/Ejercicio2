@@ -1,0 +1,28 @@
+/* Exercise 2 - RTC on LCD and MAX7219
+ * Uses the same I2C and LCD pins as Exercise 1.
+ * MAX7219: PTC4 LOAD, PTC5 SCK, PTC6 MOSI.
+ */
+
+#include "monitoring_drivers.h"
+
+int main(void)
+{
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+
+    while (1)
+    {
+        RTC_read();
+
+        LCD_command(0x80);
+        LCD_text("RTC and MAX7219 ");
+        LCD_date();
+
+        /* HH.MM; the decimal point is used instead of a colon. */
+        MAX7219_time();
+
+        delay_ms(200);
+    }
+}

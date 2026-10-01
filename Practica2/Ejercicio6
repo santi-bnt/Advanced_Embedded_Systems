@@ -1,0 +1,185 @@
+/* Exercise 6 - Complete monitoring station
+ * A = set time, B = set date, C = set alarm
+ * D = enable/disable alarm, # = confirm/stop, * = cancel
+ */
+
+#include "monitoring_drivers.h"
+
+#define NORMAL_MODE  0
+#define TIME_MODE    1
+#define DATE_MODE    2
+#define ALARM_MODE   3
+
+void show_normal_screen(int temperature)
+{
+    LCD_command(0x80);
+    LCD_two(rtc_date);
+    LCD_data('/');
+    LCD_two(rtc_month);
+    LCD_data('/');
+    LCD_two(rtc_year);
+    LCD_data(' ');
+    LCD_two(rtc_hour);
+    LCD_data(':');
+    LCD_two(rtc_minute);
+    LCD_text("  ");
+
+    LCD_command(0xC0);
+    LCD_text("T:");
+    LCD_temperature(temperature);
+    LCD_text(" A:");
+    if (alarm_enabled) LCD_text("ON ");
+    else LCD_text("OFF");
+}
+
+int main(void)
+{
+    unsigned char mode = NORMAL_MODE;
+    unsigned char digits[6];
+    unsigned char count = 0;
+    unsigned char alarm_hour = 7;
+    unsigned char alarm_minute = 30;
+    unsigned char value1;
+    unsigned char value2;
+    unsigned char value3;
+    int temperature;
+    char key;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+    keypad_init();
+    alarm_gpio_init();
+    RTC_alarm_set(alarm_hour, alarm_minute);
+
+    while (1)
+    {
+        RTC_read();
+        temperature = TMP102_read();
+        MAX7219_time();
+        key = keypad_key();
+
+        if (alarm_active)
+        {
+            LCD_command(0x80);
+            LCD_text("*** ALARM ***   ");
+            LCD_command(0xC0);
+            LCD_text("Press # to stop ");
+
+            if (key == '#')
+            {
+                RTC_alarm_clear();
+                mode = NORMAL_MODE;
+                LCD_command(0x01);
+            }
+        }
+        else if (mode == NORMAL_MODE)
+        {
+            show_normal_screen(temperature);
+
+            if (key == 'A')
+            {
+                mode = TIME_MODE;
+                count = 0;
+                LCD_command(0x01);
+                LCD_text("SET TIME HHMM");
+            }
+            else if (key == 'B')
+            {
+                mode = DATE_MODE;
+                count = 0;
+                LCD_command(0x01);
+                LCD_text("SET DATE DDMMYY");
+            }
+            else if (key == 'C')
+            {
+                mode = ALARM_MODE;
+                count = 0;
+                LCD_command(0x01);
+                LCD_text("SET ALARM HHMM");
+            }
+            else if (key == 'D')
+            {
+                if (alarm_enabled)
+                {
+                    RTC_alarm_clear();
+                    RTC_alarm_enable(0);
+                }
+                else
+                {
+                    RTC_alarm_set(alarm_hour, alarm_minute);
+                }
+            }
+        }
+        else
+        {
+            if ((key >= '0') && (key <= '9'))
+            {
+                if ((mode == DATE_MODE && count < 6u) ||
+                    (mode != DATE_MODE && count < 4u))
+                {
+                    digits[count] = (unsigned char)(key - '0');
+                    count++;
+                    LCD_input(digits, count);
+                }
+            }
+            else if (key == '*')
+            {
+                mode = NORMAL_MODE;
+                count = 0;
+                LCD_command(0x01);
+            }
+            else if (key == '#')
+            {
+                if ((mode == TIME_MODE) && (count == 4u))
+                {
+                    value1 = digits[0] * 10u + digits[1];
+                    value2 = digits[2] * 10u + digits[3];
+
+                    if ((value1 < 24u) && (value2 < 60u))
+                    {
+                        RTC_set(value1, value2, 0,
+                                rtc_date, rtc_month, rtc_year);
+                        mode = NORMAL_MODE;
+                        count = 0;
+                        LCD_command(0x01);
+                    }
+                }
+                else if ((mode == DATE_MODE) && (count == 6u))
+                {
+                    value1 = digits[0] * 10u + digits[1];
+                    value2 = digits[2] * 10u + digits[3];
+                    value3 = digits[4] * 10u + digits[5];
+
+                    if ((value1 >= 1u) && (value1 <= 31u) &&
+                        (value2 >= 1u) && (value2 <= 12u))
+                    {
+                        RTC_set(rtc_hour, rtc_minute, rtc_second,
+                                value1, value2, value3);
+                        mode = NORMAL_MODE;
+                        count = 0;
+                        LCD_command(0x01);
+                    }
+                }
+                else if ((mode == ALARM_MODE) && (count == 4u))
+                {
+                    value1 = digits[0] * 10u + digits[1];
+                    value2 = digits[2] * 10u + digits[3];
+
+                    if ((value1 < 24u) && (value2 < 60u))
+                    {
+                        alarm_hour = value1;
+                        alarm_minute = value2;
+                        RTC_alarm_set(alarm_hour, alarm_minute);
+                        mode = NORMAL_MODE;
+                        count = 0;
+                        LCD_command(0x01);
+                    }
+                }
+            }
+        }
+
+        delay_ms(50);
+    }
+}

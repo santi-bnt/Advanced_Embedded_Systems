@@ -1,0 +1,52 @@
+/* Extra 2 - Additional environmental measurement
+ * SHT31 address: 0x44
+ * Displays temperature and humidity.
+ */
+
+#include "monitoring_drivers.h"
+
+void show_humidity(unsigned int humidity)
+{
+    unsigned int whole = humidity / 10u;
+
+    if (whole >= 100u)
+    {
+        LCD_data((whole / 100u) + '0');
+    }
+
+    LCD_data(((whole / 10u) % 10u) + '0');
+    LCD_data((whole % 10u) + '0');
+    LCD_data('.');
+    LCD_data((humidity % 10u) + '0');
+    LCD_data('%');
+}
+
+int main(void)
+{
+    int temperature;
+    unsigned int humidity;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+
+    while (1)
+    {
+        RTC_read();
+        SHT31_read(&temperature, &humidity);
+        MAX7219_time();
+
+        LCD_command(0x80);
+        LCD_text("Temp: ");
+        LCD_temperature(temperature);
+        LCD_text("     ");
+
+        LCD_command(0xC0);
+        LCD_text("Humidity: ");
+        show_humidity(humidity);
+        LCD_text(" ");
+
+        delay_ms(200);
+    }
+}

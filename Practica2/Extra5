@@ -1,0 +1,39 @@
+/* Extra 5 - Sensor using another interface
+ * Potentiometer on PTB0 / ADC0_SE8.
+ */
+
+#include "monitoring_drivers.h"
+
+void show_adc(unsigned int value)
+{
+    LCD_data((value / 1000u) + '0');
+    LCD_data(((value / 100u) % 10u) + '0');
+    LCD_data(((value / 10u) % 10u) + '0');
+    LCD_data((value % 10u) + '0');
+}
+
+int main(void)
+{
+    unsigned int adc_value;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+    ADC0_init();
+
+    while (1)
+    {
+        RTC_read();
+        adc_value = ADC0_read();
+        MAX7219_time();
+
+        LCD_command(0x80);
+        LCD_text("ADC PTB0:       ");
+        LCD_command(0xC0);
+        show_adc(adc_value);
+        LCD_text(" / 4095      ");
+
+        delay_ms(100);
+    }
+}

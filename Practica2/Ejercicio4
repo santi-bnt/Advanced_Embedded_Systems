@@ -1,0 +1,246 @@
+/* Exercise 4 - DS3231 Alarm 1
+ * Enter HHMM to set the alarm
+ * # = confirm or stop an active alarm
+ * * = cancel
+ * buzzer = PTB8, visual alarm = RGB red
+ */
+
+#include "monitoring_drivers.h"
+
+int main(void)
+{
+    unsigned char setting_alarm = 0;
+    unsigned char alarm_screen = 0;
+    unsigned char digits[4];
+    unsigned char count = 0;
+    unsigned char alarm_hour = 7;
+    unsigned char alarm_minute = 30;
+    unsigned char last_second = 255;
+
+    unsigned char status = 0;
+
+    char key;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+    keypad_init();
+    alarm_gpio_init();
+
+    while (1)
+    {
+        RTC_read();
+        MAX7219_time();
+        key = keypad_key();
+
+        /* Read DS3231 status register */
+        I2C_read(DS3231_ADDRESS, 0x0F, &status, 1);
+
+        /* A1F = Alarm 1 flag */
+        if (status & 0x01)
+        {
+            alarm_active = 1;
+        }
+
+        /* ---------------- ALARM ACTIVE ---------------- */
+
+        if (alarm_active)
+        {
+            if (!alarm_screen)
+            {
+                LCD_command(0x01);
+
+                LCD_command(0x80);
+                LCD_text("*** ALARM ***");
+
+                LCD_command(0xC0);
+                LCD_text("Press # to stop");
+
+                alarm_screen = 1;
+
+                /* Red LED ON */
+                PTB->PCOR = (1u << 18);
+                PTB->PSOR = (1u << 19);
+                PTD->PSOR = (1u << 1);
+            }
+
+            /* Passive buzzer tone */
+            PTB->PSOR = (1u << 8);
+            delay_ms(1);
+
+            PTB->PCOR = (1u << 8);
+            delay_ms(1);
+
+            /* Stop alarm */
+            if (key == '#')
+            {
+                RTC_alarm_clear();
+
+                alarm_screen = 0;
+                last_second = 255;
+
+                LCD_command(0x01);
+            }
+        }
+
+        /* ---------------- NORMAL SCREEN ---------------- */
+
+        else if (!setting_alarm)
+        {
+            if (rtc_second != last_second)
+            {
+                LCD_time();
+
+                LCD_command(0xC0);
+
+                if (alarm_enabled)
+                {
+                    LCD_text("Alarm: ");
+                    LCD_two(alarm_hour);
+                    LCD_data(':');
+                    LCD_two(alarm_minute);
+                    LCD_text("   ");
+                }
+                else
+                {
+                    LCD_text("Alarm: OFF      ");
+                }
+
+                last_second = rtc_second;
+            }
+
+            /* Start entering alarm */
+            if ((key >= '0') && (key <= '9'))
+            {
+                setting_alarm = 1;
+
+                digits[0] = (unsigned char)(key - '0');
+                count = 1;
+
+                LCD_command(0x01);
+
+                LCD_command(0x80);
+                LCD_text("SET ALARM HHMM");
+
+                LCD_input(digits, count);
+            }
+        }
+
+        /* ---------------- SET ALARM ---------------- */
+
+        else
+        {
+            /* Cancel */
+            if (key == '*')
+            {
+                setting_alarm = 0;
+                count = 0;
+                last_second = 255;
+
+                LCD_command(0x01);
+            }
+
+            /* Confirm */
+            else if (key == '#')
+            {
+                if (count == 4u)
+                {
+                    alarm_hour =
+                        digits[0] * 10u +
+                        digits[1];
+
+                    alarm_minute =
+                        digits[2] * 10u +
+                        digits[3];
+
+                    /* Validate time */
+                    if ((alarm_hour < 24u) &&
+                        (alarm_minute < 60u))
+                    {
+                        LCD_command(0x01);
+
+                        LCD_command(0x80);
+                        LCD_text("ALARM SET");
+
+                        LCD_command(0xC0);
+                        LCD_two(alarm_hour);
+                        LCD_data(':');
+                        LCD_two(alarm_minute);
+
+                        /* Program DS3231 Alarm 1 */
+                        RTC_alarm_set(
+                            alarm_hour,
+                            alarm_minute
+                        );
+
+                        setting_alarm = 0;
+                        count = 0;
+                        last_second = 255;
+
+                        delay_ms(500);
+
+                        LCD_command(0x01);
+                    }
+                    else
+                    {
+                        count = 0;
+
+                        LCD_command(0x01);
+
+                        LCD_command(0x80);
+                        LCD_text("INVALID TIME");
+
+                        LCD_command(0xC0);
+                        LCD_text("TRY AGAIN");
+
+                        delay_ms(700);
+
+                        LCD_command(0x01);
+
+                        LCD_command(0x80);
+                        LCD_text("SET ALARM HHMM");
+
+                        LCD_command(0xC0);
+                        LCD_text("____");
+                    }
+                }
+                else
+                {
+                    LCD_command(0x01);
+
+                    LCD_command(0x80);
+                    LCD_text("ENTER 4 DIGITS");
+
+                    delay_ms(700);
+
+                    LCD_command(0x01);
+
+                    LCD_command(0x80);
+                    LCD_text("SET ALARM HHMM");
+
+                    LCD_input(digits, count);
+                }
+            }
+
+            /* Add digit */
+            else if ((key >= '0') &&
+                     (key <= '9') &&
+                     (count < 4u))
+            {
+                digits[count] =
+                    (unsigned char)(key - '0');
+
+                count++;
+
+                LCD_input(digits, count);
+            }
+        }
+
+        /* Don't slow down passive buzzer */
+        if (!alarm_active)
+        {
+            delay_ms(20);
+        }
+    }
+}

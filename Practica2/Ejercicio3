@@ -1,0 +1,123 @@
+/* Exercise 3 - Configure the DS3231 with the keypad
+ * A + HHMM + # = set time
+ * B + DDMMYY + # = set date
+ * * = cancel
+ */
+
+#include "monitoring_drivers.h"
+
+#define NORMAL    0
+#define SET_TIME  1
+#define SET_DATE  2
+
+int main(void)
+{
+    unsigned char mode = NORMAL;
+    unsigned char digits[6];
+    unsigned char count = 0;
+    unsigned char hour;
+    unsigned char minute;
+    unsigned char date;
+    unsigned char month;
+    unsigned char year;
+    unsigned char last_second = 255;
+    char key;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+    keypad_init();
+
+    while (1)
+    {
+        RTC_read();
+        MAX7219_time();
+        key = keypad_key();
+
+        if (mode == NORMAL)
+        {
+            if (rtc_second != last_second)
+            {
+                LCD_time();
+                LCD_date();
+                last_second = rtc_second;
+            }
+
+            if (key == 'A')
+            {
+                mode = SET_TIME;
+                count = 0;
+                LCD_command(0x01);
+                LCD_text("SET TIME HHMM");
+                LCD_command(0xC0);
+                LCD_text("____");
+            }
+            else if (key == 'B')
+            {
+                mode = SET_DATE;
+                count = 0;
+                LCD_command(0x01);
+                LCD_text("SET DATE DDMMYY");
+                LCD_command(0xC0);
+                LCD_text("______");
+            }
+        }
+        else if ((key >= '0') && (key <= '9'))
+        {
+            if (((mode == SET_TIME) && (count < 4u)) ||
+                ((mode == SET_DATE) && (count < 6u)))
+            {
+                digits[count] = (unsigned char)(key - '0');
+                count++;
+                LCD_input(digits, count);
+            }
+        }
+        else if (key == '*')
+        {
+            mode = NORMAL;
+            count = 0;
+            last_second = 255;
+            LCD_command(0x01);
+        }
+        else if (key == '#')
+        {
+            if ((mode == SET_TIME) && (count == 4u))
+            {
+                hour = digits[0] * 10u + digits[1];
+                minute = digits[2] * 10u + digits[3];
+
+                if ((hour < 24u) && (minute < 60u))
+                {
+                    RTC_set(hour, minute, 0,
+                            rtc_date, rtc_month, rtc_year);
+                }
+
+                mode = NORMAL;
+                count = 0;
+                last_second = 255;
+                LCD_command(0x01);
+            }
+            else if ((mode == SET_DATE) && (count == 6u))
+            {
+                date = digits[0] * 10u + digits[1];
+                month = digits[2] * 10u + digits[3];
+                year = digits[4] * 10u + digits[5];
+
+                if ((date >= 1u) && (date <= 31u) &&
+                    (month >= 1u) && (month <= 12u))
+                {
+                    RTC_set(rtc_hour, rtc_minute, rtc_second,
+                            date, month, year);
+                }
+
+                mode = NORMAL;
+                count = 0;
+                last_second = 255;
+                LCD_command(0x01);
+            }
+        }
+
+        delay_ms(20);
+    }
+}

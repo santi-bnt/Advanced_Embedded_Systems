@@ -1,0 +1,37 @@
+/* Exercise 5 - TMP102 temperature sensor on the RTC I2C bus
+ * DS3231 = 0x68, TMP102 = 0x48
+ */
+
+#include "monitoring_drivers.h"
+
+int main(void)
+{
+    int temperature;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+
+    while (1)
+    {
+        RTC_read();
+        temperature = TMP102_read();
+
+        MAX7219_time();
+
+        LCD_command(0x80);
+        LCD_text("Time: ");
+        LCD_two(rtc_hour);
+        LCD_data(':');
+        LCD_two(rtc_minute);
+        LCD_text("     ");
+
+        LCD_command(0xC0);
+        LCD_text("Temp: ");
+        LCD_temperature(temperature);
+        LCD_text("     ");
+
+        delay_ms(200);
+    }
+}

@@ -1,0 +1,40 @@
+/* Extra 4 - Additional I2C sensor
+ * BH1750 light sensor address: 0x23
+ */
+
+#include "monitoring_drivers.h"
+
+void show_number(unsigned int number)
+{
+    if (number > 9999u) number = 9999u;
+    LCD_data((number / 1000u) + '0');
+    LCD_data(((number / 100u) % 10u) + '0');
+    LCD_data(((number / 10u) % 10u) + '0');
+    LCD_data((number % 10u) + '0');
+}
+
+int main(void)
+{
+    unsigned int light;
+
+    I2C1_init();
+    LCD_init();
+    SPI0_init();
+    MAX7219_init();
+    BH1750_init();
+
+    while (1)
+    {
+        RTC_read();
+        light = BH1750_read();
+        MAX7219_time();
+
+        LCD_command(0x80);
+        LCD_text("Light level:    ");
+        LCD_command(0xC0);
+        show_number(light);
+        LCD_text(" lux        ");
+
+        delay_ms(200);
+    }
+}
