@@ -709,17 +709,13 @@ void PORTD_IRQHandler(void)
 int TMP102_read(void)
 {
     unsigned char data[2];
-    int raw;
+    int temperature;
 
-    I2C_read(TMP102_ADDRESS, 0x00, data, 2);
-    raw = ((int)data[0] << 4) | (data[1] >> 4);
+    I2C_read_direct(TMP102_ADDRESS, data, 2);
 
-    if (raw & 0x0800)
-    {
-        raw -= 4096;
-    }
+    temperature = ((int)data[0] << 8) | data[1];
 
-    return (raw * 10) / 16;
+    return temperature;
 }
 
 /* ---------------- I2C LCD extra ---------------- */
