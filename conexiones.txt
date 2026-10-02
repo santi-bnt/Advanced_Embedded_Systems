@@ -5,6 +5,15 @@ INT/SQW → PTD7
 VCC     → 3.3 V
 GND     → GND
 
+TMP102:
+SCL     → PTC1
+SDA     → PTC2
+VCC     → 3.3 V
+GND     → GND
+Dirección I2C: 0x48
+
+DS3231 y TMP102 comparten el bus I2C. Mantén pull-ups de SDA y SCL a 3.3 V.
+
 LCD paralelo:
 RS → PTD0
 E  → PTD2

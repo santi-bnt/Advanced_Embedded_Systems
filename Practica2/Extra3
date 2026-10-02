@@ -1,7 +1,4 @@
-/* Extra 3 - Temperature threshold alarm
- * D = set a four-digit limit in tenths of a degree C (0300 = 30.0 C).
- * # = save and * = cancel while setting the limit.
- */
+/* Extra 3 - Temperature threshold alarm */
 
 #include "monitoring_drivers.h"
 
@@ -48,7 +45,7 @@ int main(void)
 
         if (limit_exceeded)
         {
-            PTB->PCOR = (1u << 18);         /* Red LED is active-low. */
+            PTB->PCOR = (1u << 18);
             PTB->PSOR = (1u << 19);
             PTD->PSOR = (1u << 1);
             buzzer_tone_burst();

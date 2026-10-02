@@ -60,7 +60,6 @@ int main(void)
     unsigned char value2;
     unsigned char value3;
 
-    unsigned char status = 0;
     unsigned char alarm_screen = 0;
     unsigned char tone_cycle;
 
@@ -93,7 +92,7 @@ int main(void)
                 alarm_screen = 1;
             }
 
-            for (tone_cycle = 0; tone_cycle < 10u; tone_cycle++)
+            for (tone_cycle = 0; tone_cycle < 50u; tone_cycle++)
             {
                 PTB->PSOR = (1u << 8);
                 delay_ms(1);
@@ -125,35 +124,6 @@ int main(void)
 
         key = keypad_key();
 
-
-        /* ---------------- CHECK RTC ALARM ---------------- */
-
-        I2C_read(
-            DS3231_ADDRESS,
-            0x0F,
-            &status,
-            1
-        );
-
-        /* A1F = Alarm 1 flag */
-        if (status & 0x01)
-        {
-            alarm_active = 1;
-
-            /* Red LED ON */
-            PTB->PCOR = (1u << 18);
-
-            /* Green OFF */
-            PTB->PSOR = (1u << 19);
-
-            /* Blue OFF */
-            PTD->PSOR = (1u << 1);
-        }
-
-        if (alarm_active)
-        {
-            continue;
-        }
 
         /* =================================================
          * NORMAL MODE
@@ -281,7 +251,7 @@ int main(void)
                  * SET TIME
                  * ========================= */
 
-                else if (
+                if (
                     (mode == TIME_MODE) &&
                     (count == 4u)
                    )

@@ -16,8 +16,7 @@ int main(void)
     unsigned char alarm_hour = 7;
     unsigned char alarm_minute = 30;
     unsigned char last_second = 255;
-
-    unsigned char status = 0;
+    unsigned char tone_cycle;
 
     char key;
 
@@ -30,63 +29,46 @@ int main(void)
 
     while (1)
     {
-        RTC_read();
-        MAX7219_time();
         key = keypad_key();
-
-        /* Read DS3231 status register */
-        I2C_read(DS3231_ADDRESS, 0x0F, &status, 1);
-
-        /* A1F = Alarm 1 flag */
-        if (status & 0x01)
-        {
-            alarm_active = 1;
-        }
-
-        /* ---------------- ALARM ACTIVE ---------------- */
 
         if (alarm_active)
         {
             if (!alarm_screen)
             {
                 LCD_command(0x01);
-
                 LCD_command(0x80);
                 LCD_text("*** ALARM ***");
-
                 LCD_command(0xC0);
                 LCD_text("Press # to stop");
-
                 alarm_screen = 1;
-
-                /* Red LED ON */
-                PTB->PCOR = (1u << 18);
-                PTB->PSOR = (1u << 19);
-                PTD->PSOR = (1u << 1);
             }
 
-            /* Passive buzzer tone */
-            PTB->PSOR = (1u << 8);
-            delay_ms(1);
+            for (tone_cycle = 0; tone_cycle < 50u; tone_cycle++)
+            {
+                PTB->PSOR = (1u << 8);
+                delay_ms(1);
+                PTB->PCOR = (1u << 8);
+                delay_ms(1);
+            }
 
-            PTB->PCOR = (1u << 8);
-            delay_ms(1);
-
-            /* Stop alarm */
             if (key == '#')
             {
                 RTC_alarm_clear();
-
                 alarm_screen = 0;
                 last_second = 255;
-
                 LCD_command(0x01);
             }
+
+            continue;
         }
+
+        alarm_screen = 0;
+        RTC_read();
+        MAX7219_time();
 
         /* ---------------- NORMAL SCREEN ---------------- */
 
-        else if (!setting_alarm)
+        if (!setting_alarm)
         {
             if (rtc_second != last_second)
             {
