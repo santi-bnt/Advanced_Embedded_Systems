@@ -1,14 +1,9 @@
-ESP32 simulando DS3231 + TMP102 (sin sensores físicos):
-KL25Z PTC1 (I2C1_SCL) → ESP32 GPIO22 (SCL)
-KL25Z PTC2 (I2C1_SDA) → ESP32 GPIO21 (SDA)
-KL25Z GND             → ESP32 GND
-ESP32 GPIO25 (salida open-drain, INT simulado) → KL25Z PTD7 (solo ejercicio 6)
-
-Alimenta la ESP32 por USB. No conectes 5 V a PTC1, PTC2 ni PTD7;
-usa niveles de 3.3 V. Mantén pull-ups de SDA/SCL a 3.3 V.
-La ESP32 debe ejecutar firmware esclavo I2C; el cableado por sí solo
-no emula los dispositivos. GPIO21/22 asumen una ESP32 DevKit clásica.
-No conectes la alimentación de 5 V de la ESP32 a la KL25Z.
+DS3231:
+SCL     → PTC1
+SDA     → PTC2
+INT/SQW → PTD7
+VCC     → 3.3 V
+GND     → GND
 
 LCD paralelo:
 RS → PTD0
